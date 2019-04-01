@@ -38,7 +38,7 @@ fn main() -> Result<(), Box<std::error::Error>> {
             let bytes = vec![0; 12];
             let processor = tokio::io::read_exact(client, bytes)
                 .and_then(move |(socket, bytes)| {
-                    println!("bytes: {:?}", bytes);
+                    println!("\nbytes: {:?}", bytes);
                     println!("Request Size {}", BigEndian::read_i32(&bytes));
                     println!("Request api_key {}", BigEndian::read_i16(&bytes[4..]));
                     println!("Request api_version {}", BigEndian::read_i16(&bytes[6..]));
