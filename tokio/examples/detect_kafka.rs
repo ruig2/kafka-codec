@@ -1,19 +1,22 @@
 #![deny(warnings)]
 #![allow(unused_imports)]
+#![allow(unused_variables)]
 
 extern crate tokio;
 extern crate tokio_codec;
+extern crate byteorder;
 
 use tokio::codec::Decoder;
 use tokio::prelude::*;
 use tokio_codec::BytesCodec;
 use tokio::net::{TcpListener, TcpStream};
+use tokio::io::{copy, shutdown};
 
 use std::env;
 use std::sync::{Arc, Mutex};
 use std::io::{self, Read, Write};
 use std::net::{Shutdown, SocketAddr};
-use tokio::io::{copy, shutdown};
+use byteorder::{BigEndian, ReadBytesExt, ByteOrder}; // 1.2.7
 
 fn main() -> Result<(), Box<std::error::Error>> {
     let listen_addr = env::args().nth(1).unwrap_or("127.0.0.1:8888".to_string());
@@ -29,44 +32,26 @@ fn main() -> Result<(), Box<std::error::Error>> {
     let done = listen_socket
         .incoming()
         .map_err(|e| println!("failed to accept server socket; error = {:?}", e))
-        .for_each(move |_client| {
+        .for_each(move |client| {
+            println!("Received a connection");
 
-            let server = TcpStream::connect(&server_addr);
-            let _amounts = server.and_then(move |_server| {
-                Ok(())
-            });
+            let bytes = vec![0; 12];
+            let processor = tokio::io::read_exact(client, bytes)
+                .and_then(move |(socket, bytes)| {
+                    println!("bytes: {:?}", bytes);
+                    println!("Request Size {}", BigEndian::read_i32(&bytes));
+                    println!("Request api_key {}", BigEndian::read_i16(&bytes[4..]));
+                    println!("Request api_version {}", BigEndian::read_i16(&bytes[6..]));
+                    println!("Request correlation_id {}", BigEndian::read_i16(&bytes[8..]));
+
+                    Ok(())
+                })
+                .map_err(|_| ());
+            tokio::spawn(processor);
 
             Ok(())
         });
 
     tokio::run(done);
     Ok(())
-}
-
-#[derive(Clone)]
-struct MyTcpStream(Arc<Mutex<TcpStream>>);
-
-impl Read for MyTcpStream {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.0.lock().unwrap().read(buf)
-    }
-}
-
-impl Write for MyTcpStream {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.lock().unwrap().write(buf)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
-impl AsyncRead for MyTcpStream {}
-
-impl AsyncWrite for MyTcpStream {
-    fn shutdown(&mut self) -> Poll<(), io::Error> {
-        try!(self.0.lock().unwrap().shutdown(Shutdown::Write));
-        Ok(().into())
-    }
 }
