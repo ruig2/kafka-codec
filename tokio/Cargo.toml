@@ -63,6 +63,7 @@ async-await-preview = [
 [dependencies]
 # Only non-optional dependency...
 futures = "0.1.20"
+byteorder = "1"
 
 # Everything else is optional...
 bytes = { version = "0.4", optional = true }
